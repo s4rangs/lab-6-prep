@@ -88,10 +88,35 @@ void ZoomApp::updateViewAfterResize() {
     //      Black bars will automatically be drawn for you, when we clear the window with
     //      Color::Black in render()
     // ====== ====== ======
-
+    
     // Calculate newViewport based on aspect ratios of window and of mWorldSize. Then:
     // mWorldViewDefault.setViewport(newViewport);
     // mWorldViewZoomed.setViewport(newViewport);
+
+    sf::Vector2u windowSize = mWindow.getSize();
+    sf::FloatRect newViewport;
+
+    float windowAspect = static_cast<float>(windowSize.x) / static_cast<float>(windowSize.y);
+
+    float worldAspect = mWorldSize.x / mWorldSize.y;
+
+
+
+    if (windowAspect > worldAspect) {
+        // if window wider, leave black bars on sides
+        float viewportWidth = worldAspect / windowAspect;
+        /// openai implementation
+        newViewport = sf::FloatRect({ (1.0f - viewportWidth) * 0.5f, 0.0f }, { viewportWidth, 1.0f });
+        /// ends here
+    } else {
+        // window = taller? leave black bars at top + bottom
+        float viewportHeight = windowAspect / worldAspect;
+
+        newViewport = sf::FloatRect({ 0.0f, (1.0f - viewportHeight) * 0.5f }, { 1.0f, viewportHeight });
+    }
+
+    mWorldViewDefault.setViewport(newViewport);
+    mWorldViewZoomed.setViewport(newViewport);
 }
 
 // updateZoomView sets the center of mWorldViewZoomed such that the zoomed view would have the
@@ -101,24 +126,46 @@ void ZoomApp::updateZoomView(sf::Vector2i mousePos) {
     // (1) Get position of mouse relative to viewport's top-left in window pixel units.
     //     Remember that in SFML, viewports' position and size are both given as PERCENTAGES
     //     of the window size.
+    sf::FloatRect viewport = mWorldViewDefault.getViewport();
+
+    sf::Vector2u windowSize = mWindow.getSize();
+
+    // convert viewports pos + size to window pixels
+    float viewportLeft = viewport.position.x * static_cast<float>(windowSize.x);
+    float viewportTop = viewport.position.y * static_cast<float>(windowSize.y);
+
+    float viewportWidth = viewport.size.x * static_cast<float>(windowSize.x);
+    float viewportHeight = viewport.size.y * static_cast<float>(windowSize.y);
     // (2) Get position of mouse relative to viewport's top-left as percentage of original
     //     viewport.
+    float mouseX = (static_cast<float>(mousePos.x) - viewportLeft) / viewportWidth;
+    float mouseY = (static_cast<float>(mousePos.y) - viewportTop) / viewportHeight;
     // (3) Then use that to get pos of mouse relative to world top-left in world units.
+    sf::Vector2f worldMouse(mouseX * mWorldSize.x,mouseY * mWorldSize.y);
+
     // (4) Derive the new viewport center (in world units)
     //     which keeps the mouse position pointing at the same thing in
     //     original image but now within a world-space rectangle of size
     //     mWorldSize / ZOOM_FACTOR.
+    sf::Vector2f zoomSize = mWorldSize / ZOOM_FACTOR;
+
+    sf::Vector2f zoomCenter(worldMouse.x + zoomSize.x * 0.5f - mouseX * zoomSize.x, worldMouse.y + zoomSize.y * 0.5f - mouseY * zoomSize.y);
+    
+    mWorldViewZoomed.setCenter(zoomCenter);
     //  HINT: Determine the steps to go from the desired center to the top-left of this new
     //        world-space rectangle, then from this top-left to the thing you're pointing at,
     //        using our above computed vars. Then solve the equation for the desired center.
+
 }
 
 void ZoomApp::render() {
     mWindow.clear(sf::Color::Black);
     if (!mIsZooming) {
         // TODO: If the user is not zooming in, use the default world view.
+        mWindow.setView(mWorldViewDefault);
     } else {
         // TODO: If the user is zooming in, use the zoomed world view.
+        mWindow.setView(mWorldViewZoomed);
     }
     mWindow.draw(*mWaldoSprite);
     mWindow.display();
